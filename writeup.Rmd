@@ -1,0 +1,76 @@
+---
+title: "writeup"
+output: html_document
+---
+
+### Download and load the data
+
+```{r}
+library(caret)
+
+download.file(url='https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv', destfile='training.csv', method='curl')
+download.file(url='https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', destfile='testing.csv', method='curl')
+
+training <- read.csv('training.csv', stringsAsFactors=FALSE)
+testing <- read.csv('testing.csv', stringsAsFactors=FALSE)
+```
+
+### Data processing
+  - Eliminate all columns in testing that's only NA
+  - Eliminate timestamp columns
+  - Transform new_window, user_name columns to factors
+  - Getting rid of outliers
+  - zero and scale and remove outliers
+```{r}
+# eliminate columns
+drop.cols <- c('raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'X');
+
+for(col in names(testing)) {
+  if(all(is.na(testing[col]))) drop.cols <- c(drop.cols, col)
+}
+training <- training[, !(names(training) %in% drop.cols)]
+testing <- testing[, !(names(testing) %in% drop.cols)]
+
+# transformation of columns
+training <- transform(training, new_window=as.factor(new_window), user_name=as.factor(user_name), classe=as.factor(classe))
+testing <- transform(testing, new_window=as.factor(new_window), user_name=as.factor(user_name))
+
+# preprocess
+skip.cols <- c(1, 2, 3, ncol(training))
+preProc <- preProcess(training[, -c(1, 2, 3, ncol(training))])
+training[, -skip.cols] <- predict(preProc, training[, -skip.cols])
+testing[, -skip.cols] <- predict(preProc, testing[, -skip.cols])
+
+# remove outliers
+mask <- abs(training[, -skip.cols]) > 5
+training[, -skip.cols][mask] <- 0
+```
+
+### Basic density plots
+Seems that most single features don't tell too much, do PCA
+```{r, fig.width=12, fig.height=10}
+belt.cols <- grep('belt', names(training), value=TRUE)
+arm.cols <- grep('arm', names(training), value=TRUE)
+dumbbell.cols <- grep('dumbbell', names(training), value=TRUE)
+forearm.cols <- grep('forearm', names(training), value=TRUE)
+other.cols <- names(training)[!(names(training) %in% c('classe', belt.cols, arm.cols, dumbbell.cols, forearm.cols))]
+
+featurePlot(x=training[, belt.cols], y=training$classe, plot='density')
+featurePlot(x=training[, arm.cols], y=training$classe, plot='density')
+featurePlot(x=training[, dumbbell.cols], y=training$classe, plot='density')
+featurePlot(x=training[, forearm.cols], y=training$classe, plot='density')
+featurePlot(x=training[, other.cols], y=training$classe, plot='density')
+```
+
+### PCA dimensionality reduction
+```{r}
+preProc <- preProcess(training[, -skip.cols], method='pca', thresh=0.95)
+training <- cbind(training[, skip.cols], predict(preProc, training[, -skip.cols]))
+testing <- cbind(testing[, skip.cols], predict(preProc, testing[, -skip.cols]))
+```
+
+### Simple random forest classifier and printing out prediction
+```{r}
+fitMod <- train(classe ~ ., data=training, method='rf', tuneGrid=data.frame(mtry=12), nodesize=20, ntree=50, do.trace=TRUE, trControl=trainControl(method="none"))
+print(predict(fitMod, testing))
+```
