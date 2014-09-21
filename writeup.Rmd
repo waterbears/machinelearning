@@ -47,19 +47,19 @@ training[, -skip.cols][mask] <- 0
 ```
 
 ### Basic density plots
-Seems that most single features don't tell too much, do PCA
+Seems that most single features don't tell too much, do PCA next.
 ```{r, fig.width=12, fig.height=10}
 belt.cols <- grep('belt', names(training), value=TRUE)
 arm.cols <- grep('arm', names(training), value=TRUE)
 dumbbell.cols <- grep('dumbbell', names(training), value=TRUE)
 forearm.cols <- grep('forearm', names(training), value=TRUE)
 other.cols <- names(training)[!(names(training) %in% c('classe', belt.cols, arm.cols, dumbbell.cols, forearm.cols))]
-
+# 
 featurePlot(x=training[, belt.cols], y=training$classe, plot='density')
 featurePlot(x=training[, arm.cols], y=training$classe, plot='density')
 featurePlot(x=training[, dumbbell.cols], y=training$classe, plot='density')
 featurePlot(x=training[, forearm.cols], y=training$classe, plot='density')
-featurePlot(x=training[, other.cols], y=training$classe, plot='density')
+# featurePlot(x=training[, other.cols], y=training$classe, plot='density')
 ```
 
 ### PCA dimensionality reduction
@@ -72,5 +72,10 @@ testing <- cbind(testing[, skip.cols], predict(preProc, testing[, -skip.cols]))
 ### Simple random forest classifier and printing out prediction
 ```{r}
 fitMod <- train(classe ~ ., data=training, method='rf', tuneGrid=data.frame(mtry=12), nodesize=20, ntree=50, do.trace=TRUE, trControl=trainControl(method="none"))
-print(predict(fitMod, testing))
+ans <- predict(fitMod, testing)
+print(ans)
+for(k in 1:length(ans)) {
+  filename = paste0("answers/problem_id_",k,".txt")
+  write.table(ans[k],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+}
 ```
